@@ -119,21 +119,23 @@ class ChapterMaker:
         chapter_text = "\n".join(lines)
 
         prompt = (
-            "You are analyzing a single chapter (segment) from a podcast transcript.\n"
-            "Tasks:\n"
-            "1) Provide a 2–4 sentence **chapter summary** specific to what was said.\n"
-            "2) Provide a **list of important concepts/terms** mentioned in this chapter.\n"
-            "3) For each concept, include one or more **timestamps [MM:SS]** from the text where it appears.\n\n"
-            "Return STRICT JSON with this schema:\n"
-            "{\n"
-            '  "summary": "string",\n'
-            '  "concepts": [\n'
-            '     {"name": "string", "mentions": ["[MM:SS]", "..."]}\n'
-            "  ]\n"
-            "}\n\n"
-            f"Chapter window: {chapter.start:.0f}–{chapter.end:.0f} seconds\n"
-            f"Transcript lines:\n{chapter_text}\n"
-        )
+        "You are analyzing a single chapter (segment) from a podcast transcript.\n"
+        "Tasks:\n"
+        "1) Provide a 2–4 sentence **chapter summary** specific to what was said.\n"
+        "2) Provide a **list of important concepts/terms** mentioned in this chapter.\n"
+        "   For each concept, include:\n"
+        "   - \"what_was_said\": a brief summary (1–2 sentences) of what the speakers said about it (avoid generic definitions),\n"
+        "   - \"mentions\": one or more **timestamps [MM:SS]** from the text where it appears.\n\n"
+        "Return STRICT JSON with this schema:\n"
+        "{\n"
+        '  "summary": "string",\n'
+        '  "concepts": [\n'
+        '     {"name": "string", "what_was_said": "string", "mentions": ["[MM:SS]", "..."]}\n'
+        "  ]\n"
+        "}\n\n"
+        f"Chapter window: {chapter.start:.0f}–{chapter.end:.0f} seconds\n"
+        f"Transcript lines:\n{chapter_text}\n"
+        )   
 
         resp = self.client.chat.completions.create(
             model=self.model,
@@ -146,15 +148,24 @@ class ChapterMaker:
         data = {}
         if json_start != -1 and json_end != -1:
             try:
+                import json
                 data = json.loads(raw[json_start: json_end + 1])
             except Exception:
                 data = {"summary": "", "concepts": []}
+
+        # ensure keys exist
+        concepts = data.get("concepts", []) or []
+        for c in concepts:
+            c.setdefault("name", "")
+            c.setdefault("what_was_said", "")
+            c.setdefault("mentions", [])
+
         return {
             "title": chapter.title,
             "start": chapter.start,
             "end": chapter.end,
             "summary": data.get("summary", ""),
-            "concepts": data.get("concepts", []),
+            "concepts": concepts,
         }
 
     # --- Public API ---

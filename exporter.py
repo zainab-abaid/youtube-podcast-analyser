@@ -28,14 +28,13 @@ class ExcelChapterExporter:
         max_mentions = self._max_mentions(chapters_result["chapters"])
 
         # Header
-        headers = ["Chapter #", "Title", "Start", "End", "Source", "Summary", "Concept"]
+        headers = ["Chapter #", "Title", "Start", "End", "Source", "Summary", "Concept", "Concept Summary"]
         headers += [f"Mention {i+1}" for i in range(max_mentions)]
         ws.append(headers)
         for col_idx in range(1, len(headers) + 1):
             cell = ws.cell(row=1, column=col_idx)
             cell.font = Font(bold=True)
-
-        source_label = "YouTube (yt-dlp)" if chapters_result["source"] == "official" else "LLM (GPT-4o)"
+        source_label = "YouTube (yt-dlp)" if chapters_result["source"] == "official" else "LLM"
 
         # Rows
         row_idx = 2
@@ -62,18 +61,21 @@ class ExcelChapterExporter:
 
             # Concept rows (under the chapter)
             for concept in ch.get("concepts", []):
-                ws.cell(row=row_idx, column=1, value=i)  # keep chapter # for filtering
-                ws.cell(row=row_idx, column=7, value=concept.get("name", ""))
+                ws.cell(row=row_idx, column=1, value=i)  # chapter #
+                ws.cell(row=row_idx, column=7, value=concept.get("name", ""))  # Concept
+                # NEW: Concept Summary column (8)
+                cs_cell = ws.cell(row=row_idx, column=8, value=concept.get("what_was_said", ""))
+                cs_cell.alignment = Alignment(wrap_text=True)
 
                 mentions: List[str] = concept.get("mentions", [])
+                # Mentions now start from column 9 (since we added Concept Summary at col 8)
                 for m_idx, stamp in enumerate(mentions[:max_mentions]):
-                    # stamp looks like "[MM:SS]"; parse to seconds for link
                     try:
                         mm, ss = stamp.strip("[]").split(":")
                         seconds = int(mm) * 60 + int(ss)
                     except Exception:
                         seconds = 0
-                    col = 8 + m_idx  # first mention col
+                    col = 9 + m_idx
                     cell = ws.cell(row=row_idx, column=col, value=stamp)
                     cell.hyperlink = self._yt_link(seconds)
 
@@ -91,13 +93,15 @@ class ExcelChapterExporter:
             5: 16,   # Source
             6: 80,   # Summary
             7: 36,   # Concept
+            8: 80,   # Concept Summary  <-- NEW
         }
         for col_idx, width in widths.items():
             ws.column_dimensions[get_column_letter(col_idx)].width = width
-        # Mentions columns sized modestly
-        for col_idx in range(8, 8 + max_mentions):
-            ws.column_dimensions[get_column_letter(col_idx)].width = 12
 
+        # mentions columns now start at 9
+        for col_idx in range(9, 9 + max_mentions):
+            ws.column_dimensions[get_column_letter(col_idx)].width = 12
+                
         wb.save(self.out_path)
         return self.out_path
 
