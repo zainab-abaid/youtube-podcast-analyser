@@ -1,6 +1,6 @@
 # YouTube Podcast Chapterizer & Concept Extractor
 
-Turn long GenAI podcasts (e.g., Latent Space) into **clean chapters with summaries and concept lists**, plus a neatly formatted **Excel** file with **timestamped hyperlinks** back to YouTube.
+Turn long GenAI podcasts into **clean chapters with summaries and concept lists**, plus a neatly formatted **Excel** file with **timestamped hyperlinks** back to YouTube.
 
 ## Features
 - Pulls the **official YouTube transcript** via `youtube-transcript-api`.
