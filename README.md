@@ -6,7 +6,7 @@ Turn long GenAI podcasts into **clean chapters with summaries and concept lists*
 - Pulls the **official YouTube transcript** via `youtube-transcript-api`.
 - If a transcript is not available for the video, uses OpenAI Whisper to transcribe the video (if permitted using an env variable)
 - Builds **chapters**:
-  - Uses **YouTube’s own chapters** when available (via `yt-dlp`).
+  - Uses **YouTube's own chapters** when available (via `yt-dlp`).
   - Otherwise falls back to an **LLM (e.g. GPT-4o or as specified in the env file)** to create sensible, sequential chapters.
 - For each chapter:
   - Generates a **short summary**.
@@ -16,47 +16,66 @@ Turn long GenAI podcasts into **clean chapters with summaries and concept lists*
   - Chapter summary (wrapped).
   - Concepts under each chapter.
   - Each timestamp cell is a **hyperlink** back to the YouTube URL at that second.
+- **REST API** for processing videos programmatically
 
 ## Requirements
-- Python 3.9+
+- Python 3.13 (as specified in `.python-version`)
+- [uv](https://github.com/astral-sh/uv) - Python package and environment manager
 - An OpenAI API key
-- Packages:
-  ```bash
-  pip install youtube-transcript-api yt-dlp openai python-dotenv openpyxl
-  ```
 
 ## Setup
-1. **Clone or open this folder** in VS Code (recommended).
-2. **Create a virtual environment** (optional but recommended):
-   - macOS/Linux:
-     ```bash
-     python3 -m venv .venv
-     source .venv/bin/activate
-     ```
-   - Windows (PowerShell):
-     ```powershell
-     python -m venv .venv
-     .venv\Scripts\Activate.ps1
-     ```
-3. **Install dependencies**:
+1. **Clone the repository**
    ```bash
-   pip install -r requirements.txt
-   # or
-   pip install youtube-transcript-api yt-dlp openai python-dotenv openpyxl
-   ```
-4. **Add your OpenAI key and preferred model** in a `.env` file at the repo root:
-   ```env
-   OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
-   OPENAI_MODEL=gpt-4o
+   git clone <repository-url>
+   cd youtube-podcast-analyser
    ```
 
+2. **Install uv** (if not already installed):
+   ```bash
+   curl -sSf https://astral.sh/uv/install.sh | sh
+   ```
+   linux: `sudo snap install astral-uv --classic`
+
+3. Run the application using uv:
+   ```bash
+   uv run uvicorn app:app --reload --port 12345
+   ```
+
+4. **Configure environment variables**:
+   Create a `.env` file in the project root with the following content:
+   ```env
+   # Required: Your OpenAI API key
+   OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
+   
+   # Optional: Specify the OpenAI model (default: gpt-4o)
+   OPENAI_MODEL=gpt-4o
+   
+   # Optional: Set to 'true' to allow Whisper transcription if no transcript is available
+   WHISPER_TRANSCRIPTION=false
+   
+   # Optional: Whisper model to use (if WHISPER_TRANSCRIPTION is true)
+   WHISPER_MODEL=whisper-1
+   ```
 
 ## Usage
-Ensure .env file is created and contains the following:
-OPENAI_API_KEY=<your_key>
-OPENAI_MODEL=gpt-4o              # gpt-4o-mini
-USE_WHISPER=true                 # set to true to enable fallback
-WHISPER_MODEL=whisper-1 
+
+### Web API
+Start the FastAPI server:
+```bash
+uv run uvicorn app:app --reload --host 0.0.0.0 --port 12345
+```
+
+#### API Endpoints
+- `POST /api/process?youtube_url=URL&output_filename=NAME` - Start processing a YouTube video
+- `GET /api/tasks` - List all tasks and their statuses
+- `GET /api/status/{task_id}` - Check status of a specific task
+- `GET /api/download/{task_id}` - Download the processed Excel file
+
+### Command Line
+You can also use the command line interface:
+```bash
+python main.py --youtube-url "YOUTUBE_URL" --output "output.xlsx"
+```
 
 Run the main entry point with a YouTube URL. Optionally specify an output Excel path.
 
@@ -72,6 +91,22 @@ The Excel file includes:
 - One **chapter row** (title, start/end links, source label, summary).
 - Followed by **concept rows** under that chapter, with key concepts and what is said in the podcast about each concept.
 - Timestamp cells are **clickable** and jump straight to the moment on YouTube.
+
+## API Usage
+
+You can also use the FastAPI endpoint to generate and download the Excel file:
+
+1. Start the API server:
+   ```bash
+   uvicorn main:app --reload
+   ```
+
+2. Send a POST request to `/api/export` with the YouTube URL:
+   ```bash
+   curl -X POST "http://localhost:8000/api/export?youtube_url=https://www.youtube.com/watch?v=YOUR_VIDEO_ID" -o chapters.xlsx
+   ```
+
+This will return the generated `.xlsx` file as a download.
 
 ## Project Structure
 ```
@@ -106,3 +141,5 @@ youtube_analysers/
 ---
 
 **Credits**: Built with `youtube-transcript-api`, `yt-dlp`, `openai`, `python-dotenv`, and `openpyxl`.
+
+

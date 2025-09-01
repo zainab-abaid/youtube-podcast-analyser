@@ -3,3 +3,14 @@
 __pycache__/
 .DS_Store
 *.xlsx
+
+# Python
+*.py[cod]
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
