@@ -1,17 +1,10 @@
 import sys
-from analyser import TranscriptAnalyzer
 from transcript_fetcher import YouTubeTranscriptFetcher
 from chapters import ChapterMaker
 from exporter import ExcelChapterExporter
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python main.py <YouTube URL>")
-        raise SystemExit(1)
 
-    video_url = sys.argv[1]
-    out_path = sys.argv[2] if len(sys.argv) >= 3 else "chapters.xlsx"
-
+def process_video(video_url: str, out_path: str):
     transcript_text = YouTubeTranscriptFetcher(video_url).fetch_transcript_text()
     print("Transcript generated; now generating and summarizing chapters.")
     # 1) Chapters (summary + per-chapter concepts)
@@ -38,6 +31,19 @@ def main():
     # export to Excel
     saved = ExcelChapterExporter(video_url, out_path=out_path).export(chapters)
     print(f"Saved: {saved}")
+    return out_path
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python main.py <YouTube URL>")
+        raise SystemExit(1)
+
+    video_url = sys.argv[1]
+    out_path = sys.argv[2] if len(sys.argv) >= 3 else "chapters.xlsx"
+
+    process_video(video_url, out_path)
+
 
 if __name__ == "__main__":
     main()
