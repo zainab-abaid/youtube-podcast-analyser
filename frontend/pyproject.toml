@@ -1,0 +1,10 @@
+[project]
+name = "youtube-podcast-analyser-frontend"
+version = "0.1.0"
+description = "Streamlit frontend for YouTube Podcast Analyzer"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "streamlit>=1.29.0",
+    "requests>=2.31.0",
+]
