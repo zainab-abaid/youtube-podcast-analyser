@@ -1,14 +1,40 @@
-from openai import OpenAI
-from utils import chunk_text
-from typing import List
+import os
+from typing import List, Optional, Any
 from dotenv import load_dotenv
+from utils import chunk_text
+
+# --------------------------- Provider Switch ---------------------------
+
+load_dotenv()
+USE_GROQ = os.getenv("USE_GROQ", "false").lower() == "true"
+
+def _init_llm_client(model_name: Optional[str]) -> tuple[Any, str]:
+    """
+    Returns (client, resolved_model).
+    - Uses Groq if USE_GROQ=true, otherwise OpenAI.
+    - Optional env overrides:
+        GROQ_CHAT_MODEL (default: llama-3.1-70b-versatile)
+        OPENAI_MODEL    (default: gpt-4o)
+    """
+    if USE_GROQ:
+        from groq import Groq
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        resolved = model_name or os.getenv("GROQ_CHAT_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+        # If caller passed an OpenAI-only default, swap to Groq default
+        if resolved == "gpt-4o":
+            resolved = os.getenv("GROQ_CHAT_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+        return client, resolved
+    else:
+        from openai import OpenAI
+        client = OpenAI()  # reads OPENAI_API_KEY
+        resolved = model_name or os.getenv("OPENAI_MODEL", "gpt-4o")
+        return client, resolved
+
 
 class TranscriptAnalyzer:
-    """Delegates concept extraction/summarization to GPT-4o."""
-    def __init__(self, model_name: str = "gpt-4o"):
-        load_dotenv()
-        self.client = OpenAI()         # key read from env
-        self.model_name = model_name
+    """Delegates concept extraction/summarization to an LLM (OpenAI or Groq)."""
+    def __init__(self, model_name: Optional[str] = None):
+        self.client, self.model_name = _init_llm_client(model_name)
 
     def analyze_with_timestamps(self, transcript_text: str) -> str:
         """

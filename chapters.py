@@ -1,10 +1,42 @@
+import os
 import json
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 import yt_dlp
 from dotenv import load_dotenv
-from openai import OpenAI
 from config import get_openai_model
+
+# --------------------------- Provider Switch ---------------------------
+
+load_dotenv()
+USE_GROQ = os.getenv("USE_GROQ", "false").lower() == "true"
+
+def _init_llm_client(model_name: Optional[str]) -> tuple[Any, str]:
+    """
+    Returns (client, resolved_model).
+    - Uses Groq if USE_GROQ=true, otherwise OpenAI.
+    - Allows overriding the default model via env:
+        GROQ_CHAT_MODEL (default: llama-3.1-70b-versatile)
+        OPENAI_MODEL   (fallback via get_openai_model() if not provided)
+    """
+    if USE_GROQ:
+        # Import lazily so OpenAI SDK isn't required when using Groq (and vice versa)
+        from groq import Groq
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        default_groq_model = os.getenv("GROQ_CHAT_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+        # If caller passed an OpenAI default like "gpt-4o", swap to a sensible Groq default
+        resolved = (
+            default_groq_model
+            if (model_name is None or model_name == "gpt-4o")
+            else model_name
+        )
+        return client, resolved
+    else:
+        from openai import OpenAI
+        client = OpenAI()  # uses OPENAI_API_KEY from env / .env
+        resolved = model_name or get_openai_model()
+        return client, resolved
+
 
 # --------------------------- Data Models ---------------------------
 
@@ -30,10 +62,9 @@ class ChapterMaker:
     2) If unavailable, ask the LLM to create sequential chapters from the transcript.
     3) For each chapter, ask the LLM for a short summary and a concept list.
     """
-    def __init__(self, model_name: str = "gpt-4o"):
-        load_dotenv()           # read OPENAI_API_KEY from .env
-        self.client = OpenAI()  # create our own client
-        self.model = model_name or get_openai_model()
+    def __init__(self, model_name: Optional[str] = None):
+        # Create our own client and resolve model based on USE_GROQ
+        self.client, self.model = _init_llm_client(model_name)
 
     # --- (A) Try official YouTube chapters via yt-dlp ---
     def _fetch_youtube_chapters(self, video_url: str) -> List[Chapter]:
@@ -148,7 +179,6 @@ class ChapterMaker:
         data = {}
         if json_start != -1 and json_end != -1:
             try:
-                import json
                 data = json.loads(raw[json_start: json_end + 1])
             except Exception:
                 data = {"summary": "", "concepts": []}
@@ -191,4 +221,3 @@ class ChapterMaker:
             "chapter_count": len(enriched),
             "chapters": enriched,
         }
-
