@@ -55,6 +55,15 @@ Turn long GenAI podcasts into **clean chapters with summaries and concept lists*
    
    # Optional: Whisper model to use (if WHISPER_TRANSCRIPTION is true)
    WHISPER_MODEL=whisper-1
+
+   # If you want to use Groq instead of OpenAI then set:
+   USE_GROQ=true           # set to true to enable groq instead of OpenAI
+
+   # If you have set USE_GROQ to true, then set your Groq API key:
+   GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxx
+
+   # Optional: Specify the Groq model to use: (default: meta-llama/llama-4-scout-17b-16e-instruct)
+   GROQ_CHAT_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
    ```
 
 ## Usage
@@ -122,16 +131,15 @@ youtube_analysers/
 ```
 
 ## How It Works
-1. **Transcript**: `transcript_fetcher.py` extracts the video ID, fetches the transcript (or generates a new one with transcribe.py **if USE_WHISPER in the .env is set to true**), and produces a single text with `[MM:SS]` stamps.
-2. **Chapters**: `chapters.py` tries YouTube’s official chapters first (via `yt-dlp`). If none are available, it asks GPT-4o to create sequential chapters using the transcript timestamps.
-3. **Summaries & Concepts**: For each chapter, GPT-4o produces a short summary and a list of concepts/terms with representative timestamps.
+1. **Transcript**: `transcript_fetcher.py` extracts the video ID, fetches the transcript (or generates a new one with transcribe.py **if the Youtube transcript is not available AND USE_WHISPER in the .env is set to true**), and produces a single text with `[MM:SS]` stamps.
+2. **Chapters**: `chapters.py` tries YouTube’s official chapters first (via `yt-dlp`). If none are available, it asks the LLM specified in the env file (or defaults) to create sequential chapters using the transcript timestamps.
+3. **Summaries & Concepts**: For each chapter, the selected LLM produces a short summary and a list of concepts/terms with representative timestamps.
 4. **Export**: `exporter.py` writes an `.xlsx` with hyperlinks for start/end and each concept mention timestamp.
 
 ## Notes & Limits
 - If a video has **no transcript** or transcripts are disabled, it will look for the variable USE_WHISPER in the .env file to be true; otherwise generate an error and exit.
 - When **official YouTube chapters** exist, they are preferred; otherwise **LLM** chapters are generated.
 - Prompts are intentionally simple; tune temperature or instructions if needed.
-- Currently only supports OpenAI models; Groq support coming soon.
 
 ## Troubleshooting
 - **“OPENAI_API_KEY not set”** → Ensure `.env` exists and is loaded (the app uses `python-dotenv`).
