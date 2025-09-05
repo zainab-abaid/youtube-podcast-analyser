@@ -1,5 +1,7 @@
 from typing import List, Tuple
 from urllib.parse import urlparse, parse_qs
+import yt_dlp
+import re
 
 
 
@@ -40,3 +42,22 @@ def get_start_text(entry) -> Tuple[float, str]:
     start = float(getattr(entry, "start", 0.0))
     text = getattr(entry, "text", "") or ""
     return start, text
+
+
+def get_video_title(video_url: str) -> str:
+    """Get the title of a YouTube video using yt-dlp."""
+    ydl_opts = {"quiet": True, "no_warnings": True, "skip_download": True}
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            title = info.get("title", "Unknown Video")
+            # Sanitize filename by removing invalid characters
+            sanitized_title = re.sub(r'[<>:"/\\|?*]', '_', title)
+            # Limit length to avoid filesystem issues
+            if len(sanitized_title) > 100:
+                sanitized_title = sanitized_title[:100]
+            return sanitized_title
+    except Exception as e:
+        # Fallback to video ID if title extraction fails
+        video_id = extract_video_id(video_url)
+        return f"video_{video_id}"

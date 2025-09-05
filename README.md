@@ -68,6 +68,22 @@ Turn long GenAI podcasts into **clean chapters with summaries and concept lists*
 
 ## Usage
 
+### Web Interface (Streamlit Frontend)
+The project includes a Streamlit-based web interface for easy interaction:
+
+1. Start the backend API:
+```bash
+uv run uvicorn app:app --reload --host 0.0.0.0 --port 12345
+```
+
+2. In a new terminal, start the frontend:
+```bash
+cd frontend
+uv run streamlit run app.py
+```
+
+3. Open your browser to `http://localhost:8501` to access the web interface
+
 ### Web API
 Start the FastAPI server:
 ```bash
