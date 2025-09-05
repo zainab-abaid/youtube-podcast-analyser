@@ -2,6 +2,7 @@ import sys
 from transcript_fetcher import YouTubeTranscriptFetcher
 from chapters import ChapterMaker
 from exporter import ExcelChapterExporter
+from utils import get_video_title
 
 
 def process_video(video_url: str, out_path: str):
@@ -40,7 +41,15 @@ def main():
         raise SystemExit(1)
 
     video_url = sys.argv[1]
-    out_path = sys.argv[2] if len(sys.argv) >= 3 else "chapters.xlsx"
+    
+    # Auto-generate filename based on video title
+    if len(sys.argv) >= 3:
+        # If user provides a custom path, use it
+        out_path = sys.argv[2]
+    else:
+        # Auto-generate filename using video title
+        video_title = get_video_title(video_url)
+        out_path = f"podcast_summary_{video_title}.xlsx"
 
     process_video(video_url, out_path)
 

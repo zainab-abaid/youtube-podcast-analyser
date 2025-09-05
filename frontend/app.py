@@ -68,11 +68,6 @@ if not st.session_state.processing:
             st.session_state.error_message = None
             # Save URL for retry
             st.session_state.last_url = clean_url
-            # Generate filename with timestamp
-            output_filename = f"analysis_{int(time.time())}"
-            
-            # Show what we're processing
-            st.success(f"✅ Valid YouTube URL detected (Video ID: {video_id})")
             
             # Start processing
             try:
@@ -81,7 +76,6 @@ if not st.session_state.processing:
                     f"{API_BASE_URL}/api/process",
                     params={
                         "youtube_url": clean_url,
-                        "output_filename": output_filename
                     }
                 )
                 
@@ -214,8 +208,6 @@ elif st.session_state.error_message and not st.session_state.processing:
             if st.session_state.last_url:
                 st.session_state.error_message = None
                 st.session_state.processing = True
-                # Generate new filename with timestamp
-                output_filename = f"analysis_{int(time.time())}"
                 
                 # Retry with the same URL
                 try:
@@ -223,7 +215,6 @@ elif st.session_state.error_message and not st.session_state.processing:
                         f"{API_BASE_URL}/api/process",
                         params={
                             "youtube_url": st.session_state.last_url,
-                            "output_filename": output_filename
                         }
                     )
                     

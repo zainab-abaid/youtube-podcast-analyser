@@ -6,6 +6,7 @@ from fastapi import FastAPI, Query, BackgroundTasks, HTTPException, status
 from fastapi.responses import FileResponse
 from typing import Dict
 from main import process_video
+from utils import get_video_title
 
 app = FastAPI()
 
@@ -20,8 +21,11 @@ class TaskStatus(str, enum.Enum):
     ERROR = "error"
 
 
-def process_video_background(task_id: str, youtube_url: str, output_filename: str):
+def process_video_background(task_id: str, youtube_url: str):
     try:
+        # Get video title and generate filename
+        video_title = get_video_title(youtube_url)
+        output_filename = f"podcast_summary_{video_title}"
         output_path = f"output/{output_filename}.xlsx"
         os.makedirs("output", exist_ok=True)
 
@@ -47,27 +51,34 @@ def process_video_background(task_id: str, youtube_url: str, output_filename: st
 @app.post("/api/process")
 async def process_youtube_video(
         youtube_url: str = Query(..., description="YouTube video URL"),
-        output_filename: str = Query(..., description="Name for the output file (without extension)"),
         background_tasks: BackgroundTasks = None
 ):
     # Generate a unique task ID
     task_id = str(uuid.uuid4())
 
+    # Get video title for the response (but actual filename generation happens in background)
+    try:
+        video_title = get_video_title(youtube_url)
+        output_filename = f"podcast_summary_{video_title}.xlsx"
+    except Exception:
+        # Fallback filename if title extraction fails during response
+        output_filename = f"podcast_summary_video.xlsx"
+
     # Initialize task status
     processing_tasks[task_id] = {
         "status": "queued",
         "youtube_url": youtube_url,
-        "output_filename": f"{output_filename}.xlsx"
+        "output_filename": output_filename
     }
 
     # Start background task
-    background_tasks.add_task(process_video_background, task_id, youtube_url, output_filename)
+    background_tasks.add_task(process_video_background, task_id, youtube_url)
 
     return {
         "task_id": task_id,
         "status": "processing_started",
         "youtube_url": youtube_url,
-        "output_filename": f"{output_filename}.xlsx"
+        "output_filename": output_filename
     }
 
 
@@ -105,7 +116,7 @@ async def download_file(task_id: str):
         raise HTTPException(status_code=404, detail="File not found")
 
     return FileResponse(
-        task["output_path"],
+        path=task["output_path"],
         filename=task["output_filename"],
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
