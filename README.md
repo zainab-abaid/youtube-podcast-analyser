@@ -36,12 +36,7 @@ Turn long GenAI podcasts into **clean chapters with summaries and concept lists*
    ```
    linux: `sudo snap install astral-uv --classic`
 
-3. Run the application using uv:
-   ```bash
-   uv run uvicorn app:app --reload --port 12345
-   ```
-
-4. **Configure environment variables**:
+3. **Configure environment variables**:
    Create a `.env` file in the project root with the following content:
    ```env
    # Required: Your OpenAI API key
@@ -64,6 +59,11 @@ Turn long GenAI podcasts into **clean chapters with summaries and concept lists*
 
    # Optional: Specify the Groq model to use: (default: meta-llama/llama-4-scout-17b-16e-instruct)
    GROQ_CHAT_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+   ```
+
+4. Run the application using uv:
+   ```bash
+   uv run uvicorn app:app --reload --port 12345
    ```
 
 ## Usage
@@ -91,7 +91,7 @@ uv run uvicorn app:app --reload --host 0.0.0.0 --port 12345
 ```
 
 #### API Endpoints
-- `POST /api/process?youtube_url=URL&output_filename=NAME` - Start processing a YouTube video
+- `POST /api/process?youtube_url=URL` - Start processing a YouTube video (filename auto-generated from video title)
 - `GET /api/tasks` - List all tasks and their statuses
 - `GET /api/status/{task_id}` - Check status of a specific task
 - `GET /api/download/{task_id}` - Download the processed Excel file
@@ -99,13 +99,13 @@ uv run uvicorn app:app --reload --host 0.0.0.0 --port 12345
 ### Command Line
 You can also use the command line interface:
 ```bash
-python main.py --youtube-url "YOUTUBE_URL" --output "output.xlsx"
+uv run python main.py "YOUTUBE_URL" [optional_output_path]
 ```
 
 Run the main entry point with a YouTube URL. Optionally specify an output Excel path.
 
 ```bash
-python main.py "https://www.youtube.com/watch?v=YOUR_VIDEO_ID" ./chapters.xlsx
+uv run python main.py "https://www.youtube.com/watch?v=YOUR_VIDEO_ID" ./chapters.xlsx
 ```
 
 On the console you’ll see:
@@ -123,27 +123,44 @@ You can also use the FastAPI endpoint to generate and download the Excel file:
 
 1. Start the API server:
    ```bash
-   uvicorn main:app --reload
+   uv run uvicorn app:app --reload --port 12345
    ```
 
-2. Send a POST request to `/api/export` with the YouTube URL:
+2. Send a POST request to `/api/process` with the YouTube URL:
    ```bash
-   curl -X POST "http://localhost:8000/api/export?youtube_url=https://www.youtube.com/watch?v=YOUR_VIDEO_ID" -o chapters.xlsx
+   curl -X POST "http://localhost:12345/api/process?youtube_url=https://www.youtube.com/watch?v=YOUR_VIDEO_ID"
+   ```
+
+3. Check the task status and download when complete:
+   ```bash
+   curl "http://localhost:12345/api/tasks"
+   curl "http://localhost:12345/api/download/{task_id}" -o chapters.xlsx
    ```
 
 This will return the generated `.xlsx` file as a download.
 
 ## Project Structure
 ```
-youtube_analysers/
-├─ .env                    # your OpenAI key (not committed)
-├─ requirements.txt        # optional: freeze your deps
-├─ main.py                 # CLI entry point
-├─ transcript_fetcher.py   # pulls YouTube transcript, adds [MM:SS] stamps
-├─ transcribe.py           # creates transcript with Whisper if YouTube transcript not available, adds [MM:SS] stamps
-├─ chapters.py             # ChapterMaker: official chapters → else LLM; per-chapter summary+concepts
-├─ exporter.py             # Excel exporter with timestamp hyperlinks
-└─ utils.py                # helpers (ts, chunking, URL parsing)
+youtube-podcast-analyser/
+├─ frontend/               # Streamlit web interface
+│  ├─ app.py              # Streamlit frontend application
+│  ├─ pyproject.toml      # Frontend dependencies
+│  └─ README.md           # Frontend documentation
+├─ output/                 # Generated Excel files output directory
+├─ .env                    # Environment variables (OpenAI/Groq API keys, not committed)
+├─ .gitignore             # Git ignore patterns
+├─ pyproject.toml         # Main project dependencies
+├─ uv.lock                # Dependency lock file
+├─ README.md              # This file
+├─ main.py                # CLI entry point
+├─ app.py                 # FastAPI web server
+├─ config.py              # Configuration management
+├─ analyser.py            # Transcript analysis with timestamps
+├─ transcript_fetcher.py  # Pulls YouTube transcript, adds [MM:SS] stamps
+├─ transcribe.py          # Creates transcript with Whisper if YouTube transcript not available
+├─ chapters.py            # ChapterMaker: official chapters → else LLM; per-chapter summary+concepts
+├─ exporter.py            # Excel exporter with timestamp hyperlinks
+└─ utils.py               # Helpers (timestamps, chunking, URL parsing)
 ```
 
 ## How It Works
