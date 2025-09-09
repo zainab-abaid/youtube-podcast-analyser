@@ -39,6 +39,8 @@ if 'show_existing_task_message' not in st.session_state:
     st.session_state.show_existing_task_message = None
 if 'existing_task_status' not in st.session_state:
     st.session_state.existing_task_status = None
+if 'form_submitted' not in st.session_state:
+    st.session_state.form_submitted = False
 
 # Title
 st.title("🎙️ YouTube Podcast Analyzer")
@@ -273,21 +275,24 @@ if st.session_state.show_existing_task_message:
     # Clear the message after showing it
     st.session_state.show_existing_task_message = None
 
-# Form is always visible
-with st.form("youtube_form"):
-    # YouTube URL input with helper text
-    youtube_url = st.text_input(
-        "YouTube URL",
-        placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/...",
-        help="Enter a YouTube video URL. Supported formats: youtube.com/watch?v=..., youtu.be/..., or m.youtube.com/watch?v=..."
-    )
-    
-    # Submit button
-    submit_button = st.form_submit_button(
-        "Generate Summary",
-        use_container_width=True,
-        type="primary"
-    )
+# Form container with proper state management
+form_container = st.container()
+with form_container:
+    with st.form("youtube_form", clear_on_submit=True):
+        # YouTube URL input with helper text
+        youtube_url = st.text_input(
+            "YouTube URL",
+            placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/...",
+            help="Enter a YouTube video URL. Supported formats: youtube.com/watch?v=..., youtu.be/..., or m.youtube.com/watch?v=...",
+            key="url_input"
+        )
+        
+        # Submit button
+        submit_button = st.form_submit_button(
+            "Generate Summary",
+            use_container_width=True,
+            type="primary"
+        )
 
 # Process the form submission
 if submit_button:
@@ -321,6 +326,7 @@ if submit_button:
                 result = response.json()
                 st.session_state.task_id = result["task_id"]
                 st.session_state.error_message = None
+                st.session_state.form_submitted = True
                 
                 # Check if this is an existing task
                 if result["status"].startswith("existing_task_"):
@@ -345,6 +351,8 @@ if submit_button:
                     st.session_state.show_existing_task_message = None
                     st.session_state.existing_task_status = None
                 
+                # Use st.rerun() with a small delay to prevent form duplication
+                time.sleep(0.1)
                 st.rerun()
             else:
                 # Check if it's a specific API error
