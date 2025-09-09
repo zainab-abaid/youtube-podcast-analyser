@@ -29,8 +29,9 @@ def process_video_background(task_id: str, youtube_url: str):
         output_path = f"output/{output_filename}.xlsx"
         os.makedirs("output", exist_ok=True)
 
-        # Update task status
+        # Update task status and ensure video name is stored
         processing_tasks[task_id]["status"] = "processing"
+        processing_tasks[task_id]["youtube_video_name"] = video_title
 
         # Process the video
         process_video(youtube_url, output_path)
@@ -62,12 +63,14 @@ async def process_youtube_video(
         output_filename = f"podcast_summary_{video_title}.xlsx"
     except Exception:
         # Fallback filename if title extraction fails during response
+        video_title = "Unknown Video"
         output_filename = f"podcast_summary_video.xlsx"
 
     # Initialize task status
     processing_tasks[task_id] = {
         "status": "queued",
         "youtube_url": youtube_url,
+        "youtube_video_name": video_title,
         "output_filename": output_filename
     }
 
