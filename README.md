@@ -24,6 +24,62 @@ Turn long GenAI podcasts into **clean chapters with summaries and concept lists*
 - An OpenAI API key
 
 ## Setup
+
+### Option 1: Docker (Recommended)
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd youtube-podcast-analyser
+   ```
+
+2. **Configure environment variables**:
+   Copy the example environment file and configure it:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` with your API keys:
+   ```env
+   # Required: Your OpenAI API key
+   OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
+   
+   # Optional: Specify the OpenAI model (default: gpt-4o)
+   OPENAI_MODEL=gpt-4o
+   
+   # Optional: Set to 'true' to allow Whisper transcription if no transcript is available
+   WHISPER_TRANSCRIPTION=false
+   
+   # Optional: Whisper model to use (if WHISPER_TRANSCRIPTION is true)
+   WHISPER_MODEL=whisper-1
+
+   # If you want to use Groq instead of OpenAI then set:
+   USE_GROQ=false           # set to true to enable groq instead of OpenAI
+
+   # If you have set USE_GROQ to true, then set your Groq API key:
+   GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxx
+
+   # Optional: Specify the Groq model to use: (default: meta-llama/llama-4-scout-17b-16e-instruct)
+   GROQ_CHAT_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+   ```
+
+3. **Run with Docker Compose**:
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Access the application**:
+   - Frontend (Streamlit): http://localhost:8501
+   - Backend API: http://localhost:12345
+   - API Documentation: http://localhost:12345/docs
+
+5. **Stop the application**:
+   ```bash
+   docker-compose down
+   ```
+
+### Option 2: Local Development
+
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
@@ -68,7 +124,17 @@ Turn long GenAI podcasts into **clean chapters with summaries and concept lists*
 
 ## Usage
 
-### Web Interface (Streamlit Frontend)
+### Docker Usage (Recommended)
+
+After running `docker-compose up -d`, the application will be available at:
+- **Web Interface**: http://localhost:8501 (Streamlit frontend)
+- **API Documentation**: http://localhost:12345/docs (FastAPI Swagger UI)
+
+Simply open your browser to http://localhost:8501 and start analyzing YouTube videos!
+
+### Local Development Usage
+
+#### Web Interface (Streamlit Frontend)
 The project includes a Streamlit-based web interface for easy interaction:
 
 1. Start the backend API:

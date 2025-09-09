@@ -54,7 +54,33 @@ async def process_youtube_video(
         youtube_url: str = Query(..., description="YouTube video URL"),
         background_tasks: BackgroundTasks = None
 ):
-    # Generate a unique task ID
+    # Check if there's already a task for this video URL
+    existing_task = None
+    existing_task_id = None
+    
+    for task_id, task_data in processing_tasks.items():
+        if task_data.get("youtube_url") == youtube_url:
+            existing_task = task_data
+            existing_task_id = task_id
+            break
+    
+    # If task exists and is not in error state, return existing task info
+    if existing_task and existing_task["status"] != "error":
+        response = {
+            "task_id": existing_task_id,
+            "status": f"existing_task_{existing_task['status']}",
+            "youtube_url": youtube_url,
+            "output_filename": existing_task.get("output_filename", ""),
+            "message": f"Task already exists with status: {existing_task['status']}"
+        }
+        
+        # Add download URL if completed
+        if existing_task["status"] == "completed":
+            response["download_url"] = f"/api/download/{existing_task_id}"
+            
+        return response
+
+    # Generate a unique task ID for new task
     task_id = str(uuid.uuid4())
 
     # Get video title for the response (but actual filename generation happens in background)
