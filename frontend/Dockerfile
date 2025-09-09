@@ -9,16 +9,19 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-RUN curl -sSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:$PATH"
+# Install uv directly to /usr/local/bin
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv ~/.cargo/bin/uv /usr/local/bin/ 2>/dev/null || mv ~/.local/bin/uv /usr/local/bin/ 2>/dev/null || true
+
+# Verify uv installation
+RUN uv --version
 
 # Copy frontend project files
 COPY pyproject.toml ./
 COPY *.py ./
 
 # Install dependencies using uv
-RUN uv sync --frozen
+RUN uv sync
 
 # Expose port
 EXPOSE 8501

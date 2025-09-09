@@ -17,6 +17,8 @@ st.set_page_config(
 
 # API configuration
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:12345")
+# External URL for browser downloads (always localhost for user's browser)
+EXTERNAL_API_URL = os.getenv("EXTERNAL_API_URL", "http://localhost:12345")
 
 # Initialize session state
 if 'task_id' not in st.session_state:
@@ -206,7 +208,7 @@ def display_tasks_table():
                             
                             with col3:
                                 if task["status"] == "Completed":
-                                    download_url = f"{API_BASE_URL}/api/download/{task['task_id']}"
+                                    download_url = f"{EXTERNAL_API_URL}/api/download/{task['task_id']}"
                                     st.markdown(f'<div style="text-align: center;"><a href="{download_url}" class="action-link" target="_blank" title="Download">📥</a></div>', unsafe_allow_html=True)
                                 elif task["status"] == "Error":
                                     # Simple retry button that looks exactly like download button
@@ -249,7 +251,7 @@ if st.session_state.show_existing_task_message:
                 st.success("✅ This video has already been processed!")
             with col2:
                 if st.session_state.task_id:
-                    download_url = f"{API_BASE_URL}/api/download/{st.session_state.task_id}"
+                    download_url = f"{EXTERNAL_API_URL}/api/download/{st.session_state.task_id}"
                     st.link_button(
                         "📥 Download",
                         download_url,
@@ -323,7 +325,7 @@ if submit_button:
                     
                     if actual_status == "completed":
                         # Task is already completed
-                        st.session_state.download_url = result.get("download_url", f"{API_BASE_URL}/api/download/{result['task_id']}")
+                        st.session_state.download_url = result.get("download_url", f"{EXTERNAL_API_URL}/api/download/{result['task_id']}")
                         st.session_state.processing = False
                     else:
                         # Task is still processing or queued
@@ -381,7 +383,7 @@ if st.session_state.processing and st.session_state.task_id:
                     if actual_status == "completed":
                         # Stop processing flag since task is done
                         st.session_state.processing = False
-                        st.session_state.download_url = f"{API_BASE_URL}/api/download/{st.session_state.task_id}"
+                        st.session_state.download_url = f"{EXTERNAL_API_URL}/api/download/{st.session_state.task_id}"
                         st.rerun()
                         
                     elif actual_status == "error":
@@ -427,7 +429,7 @@ if st.session_state.error_message and not st.session_state.processing:
                         
                         if actual_status == "completed":
                             # Task is already completed
-                            st.session_state.download_url = result.get("download_url", f"{API_BASE_URL}/api/download/{result['task_id']}")
+                            st.session_state.download_url = result.get("download_url", f"{EXTERNAL_API_URL}/api/download/{result['task_id']}")
                             st.session_state.processing = False
                         else:
                             # Task is still processing or queued
