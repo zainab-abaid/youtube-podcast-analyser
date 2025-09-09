@@ -141,11 +141,12 @@ def display_tasks_table():
                             color: #6b7280 !important;
                             font-size: 1.3rem !important;
                             padding: 0 !important;
-                            margin: 0 !important;
+                            margin: 0 auto !important;
                             transition: color 0.2s !important;
                             box-shadow: none !important;
                             width: auto !important;
                             height: auto !important;
+                            display: block !important;
                         }
                         .stButton > button:hover {
                             color: #374151 !important;
@@ -155,6 +156,12 @@ def display_tasks_table():
                         .stButton > button:focus {
                             outline: none !important;
                             box-shadow: none !important;
+                            border: none !important;
+                        }
+                        .stButton {
+                            display: flex !important;
+                            justify-content: center !important;
+                            align-items: center !important;
                         }
                         .action-link {
                             color: #6b7280;
@@ -399,60 +406,6 @@ if st.session_state.processing and st.session_state.task_id:
 # Show error if failed
 if st.session_state.error_message and not st.session_state.processing:
     st.error(f"❌ Processing failed: {st.session_state.error_message}")
-    
-    if st.button("🔄 Retry", use_container_width=True, type="primary"):
-        if st.session_state.last_url:
-            st.session_state.error_message = None
-            st.session_state.processing = True
-            
-            # Retry with the same URL
-            try:
-                response = requests.post(
-                    f"{API_BASE_URL}/api/process",
-                    params={
-                        "youtube_url": st.session_state.last_url,
-                    }
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    st.session_state.task_id = result["task_id"]
-                    st.session_state.error_message = None
-                    
-                    # Check if this is an existing task
-                    if result["status"].startswith("existing_task_"):
-                        actual_status = result["status"].replace("existing_task_", "")
-                        
-                        # Set flags for showing appropriate message
-                        st.session_state.show_existing_task_message = True
-                        st.session_state.existing_task_status = actual_status
-                        
-                        if actual_status == "completed":
-                            # Task is already completed
-                            st.session_state.download_url = result.get("download_url", f"{EXTERNAL_API_URL}/api/download/{result['task_id']}")
-                            st.session_state.processing = False
-                        else:
-                            # Task is still processing or queued
-                            st.session_state.processing = True
-                            st.session_state.download_url = None
-                    else:
-                        # New task
-                        st.session_state.processing = True
-                        st.session_state.download_url = None
-                        st.session_state.show_existing_task_message = None
-                        st.session_state.existing_task_status = None
-                    
-                    st.rerun()
-                else:
-                    st.session_state.error_message = f"API Error {response.status_code}: {response.text}"
-                    st.rerun()
-                    
-            except requests.exceptions.ConnectionError:
-                st.session_state.error_message = "Could not connect to the API server. Please make sure the backend is running on port 12345."
-                st.rerun()
-            except Exception as e:
-                st.session_state.error_message = str(e)
-                st.rerun()
 
 # Check if there are any active tasks
 if has_active_tasks() or st.session_state.processing:
