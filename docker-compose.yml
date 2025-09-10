@@ -15,6 +15,7 @@ services:
       - USE_GROQ=${USE_GROQ:-false}
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GROQ_CHAT_MODEL=${GROQ_CHAT_MODEL:-meta-llama/llama-4-scout-17b-16e-instruct}
+      - EXTERNAL_API_URL
     volumes:
       - ./output:/app/output
     networks:
@@ -35,6 +36,7 @@ services:
       - "8501:8501"
     environment:
       - API_BASE_URL=http://backend:12345
+      - EXTERNAL_API_URL=${EXTERNAL_API_URL}
     depends_on:
       backend:
         condition: service_healthy
