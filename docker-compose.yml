@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "12345:12345"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - WHISPER_TRANSCRIPTION=${WHISPER_TRANSCRIPTION:-false}
+      - WHISPER_MODEL=${WHISPER_MODEL:-whisper-1}
+      - USE_GROQ=${USE_GROQ:-false}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_CHAT_MODEL=${GROQ_CHAT_MODEL:-meta-llama/llama-4-scout-17b-16e-instruct}
+    volumes:
+      - ./output:/app/output
+    networks:
+      - youtube-analyzer
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:12345/api/tasks"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://backend:12345
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - youtube-analyzer
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  youtube-analyzer:
+    driver: bridge
+
+volumes:
+  output_data:
+    driver: local

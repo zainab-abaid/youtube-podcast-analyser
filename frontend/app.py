@@ -3,6 +3,7 @@ import requests
 import time
 import os
 from pathlib import Path
+from datetime import datetime, timedelta
 
 # Import validation utilities
 from url_validator import validate_youtube_url, extract_clean_url, get_validation_help_message
@@ -16,6 +17,8 @@ st.set_page_config(
 
 # API configuration
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:12345")
+# External URL for browser downloads (always localhost for user's browser)
+EXTERNAL_API_URL = os.getenv("EXTERNAL_API_URL", "http://localhost:12345")
 
 # Initialize session state
 if 'task_id' not in st.session_state:
@@ -28,19 +31,260 @@ if 'error_message' not in st.session_state:
     st.session_state.error_message = None
 if 'last_url' not in st.session_state:
     st.session_state.last_url = None
+if 'last_refresh' not in st.session_state:
+    st.session_state.last_refresh = datetime.now()
+if 'auto_refresh' not in st.session_state:
+    st.session_state.auto_refresh = True
+if 'show_existing_task_message' not in st.session_state:
+    st.session_state.show_existing_task_message = None
+if 'existing_task_status' not in st.session_state:
+    st.session_state.existing_task_status = None
+if 'form_submitted' not in st.session_state:
+    st.session_state.form_submitted = False
 
 # Title
 st.title("🎙️ YouTube Podcast Analyzer")
 st.caption("*Optimized for GenAI related podcasts*")
 
-# Only show form if not processing
-if not st.session_state.processing:
-    with st.form("youtube_form"):
+# Auto-refresh settings
+col1, col2 = st.columns([4, 1])
+
+# Function to check if any tasks are processing
+def has_active_tasks():
+    try:
+        response = requests.get(f"{API_BASE_URL}/api/tasks")
+        if response.status_code == 200:
+            tasks = response.json()
+            for task_id, task_data in tasks.items():
+                if task_data.get("status") in ["processing", "queued"]:
+                    return True
+        return False
+    except:
+        return False
+
+# Function to fetch and display tasks table
+def display_tasks_table():
+    # Create a placeholder for the table
+    table_container = st.container()
+    
+    with table_container:
+        try:
+            response = requests.get(f"{API_BASE_URL}/api/tasks")
+            if response.status_code == 200:
+                tasks = response.json()
+                
+                if tasks:
+                    st.subheader("Tasks")
+                    
+                    # Filter tasks for in-progress, completed, and error
+                    filtered_tasks = []
+                    for task_id, task_data in tasks.items():
+                        if task_data.get("status") in ["processing", "queued", "completed", "error"]:
+                            filtered_tasks.append({
+                                "task_id": task_id,
+                                "video_name": task_data.get("youtube_video_name", "Unknown"),
+                                "status": task_data.get("status", "unknown").title(),
+                                "youtube_url": task_data.get("youtube_url", ""),
+                                "error": task_data.get("error", "")
+                            })
+                    
+                    if filtered_tasks:
+                        # Minimal table styling
+                        st.markdown("""
+                        <style>
+                        .minimal-table {
+                            width: 100%;
+                            margin: 1rem 0;
+                        }
+                        .minimal-table-header {
+                            font-size: 0.85rem;
+                            font-weight: 500;
+                            color: #6b7280;
+                            text-transform: uppercase;
+                            letter-spacing: 0.05em;
+                            padding-bottom: 0.5rem;
+                            border-bottom: 1px solid #e5e7eb;
+                            margin-bottom: 0.75rem;
+                        }
+                        .minimal-table-row {
+                            padding: 0.75rem 0;
+                            border-bottom: 1px solid #f3f4f6;
+                            display: flex;
+                            align-items: center;
+                        }
+                        .minimal-table-row:last-child {
+                            border-bottom: none;
+                        }
+                        .video-name {
+                            font-size: 0.9rem;
+                            color: #FFFFFF;
+                            line-height: 1.4;
+                        }
+                        .status-text {
+                            font-size: 0.85rem;
+                            color: #6b7280;
+                        }
+                        .status-processing {
+                            color: #f59e0b;
+                        }
+                        .status-completed {
+                            color: #10b981;
+                        }
+                        .status-queued {
+                            color: #6366f1;
+                        }
+                        .status-error {
+                            color: #ef4444;
+                        }
+                        /* Style retry buttons to look like action links */
+                        .stButton > button {
+                            background: none !important;
+                            border: none !important;
+                            color: #6b7280 !important;
+                            font-size: 1.3rem !important;
+                            padding: 0 !important;
+                            margin: 0 auto !important;
+                            transition: color 0.2s !important;
+                            box-shadow: none !important;
+                            width: auto !important;
+                            height: auto !important;
+                            display: block !important;
+                        }
+                        .stButton > button:hover {
+                            color: #374151 !important;
+                            background: none !important;
+                            border: none !important;
+                        }
+                        .stButton > button:focus {
+                            outline: none !important;
+                            box-shadow: none !important;
+                            border: none !important;
+                        }
+                        .stButton {
+                            display: flex !important;
+                            justify-content: center !important;
+                            align-items: center !important;
+                        }
+                        .action-link {
+                            color: #6b7280;
+                            text-decoration: none;
+                            font-size: 1.3rem;
+                            transition: color 0.2s;
+                        }
+                        .action-link:hover {
+                            color: #374151;
+                        }
+                        .minimal-table-cell {
+                            display: flex;
+                            align-items: center;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+                        
+                        # Table container
+                        st.markdown('<div class="minimal-table">', unsafe_allow_html=True)
+                        
+                        # Table headers
+                        col1, col2, col3 = st.columns([5, 2, 1])
+                        with col1:
+                            st.markdown('<div class="minimal-table-header">Video</div>', unsafe_allow_html=True)
+                        with col2:
+                            st.markdown('<div class="minimal-table-header">Status</div>', unsafe_allow_html=True)
+                        with col3:
+                            st.markdown('<div class="minimal-table-header" style="text-align: center;">Action</div>', unsafe_allow_html=True)
+                        
+                        # Display table rows
+                        for task in filtered_tasks:
+                            col1, col2, col3 = st.columns([5, 2, 1])
+                            
+                            with col1:
+                                # Truncate long video names
+                                video_name = task["video_name"]
+                                if len(video_name) > 50:
+                                    video_name = video_name[:47] + "..."
+                                st.markdown(f'<div class="video-name">{video_name}</div>', unsafe_allow_html=True)
+                            
+                            with col2:
+                                status = task["status"].lower()
+                                if status == "processing":
+                                    st.markdown('<span class="status-text status-processing">🔄 Processing</span>', unsafe_allow_html=True)
+                                elif status == "queued":
+                                    st.markdown('<span class="status-text status-queued">⏳ Queued</span>', unsafe_allow_html=True)
+                                elif status == "completed":
+                                    st.markdown('<span class="status-text status-completed">✅ Completed</span>', unsafe_allow_html=True)
+                                elif status == "error":
+                                    st.markdown('<span class="status-text status-error">❌ Error</span>', unsafe_allow_html=True)
+                            
+                            with col3:
+                                if task["status"] == "Completed":
+                                    download_url = f"{EXTERNAL_API_URL}/api/download/{task['task_id']}"
+                                    st.markdown(f'<div style="text-align: center;"><a href="{download_url}" class="action-link" target="_blank" title="Download">📥</a></div>', unsafe_allow_html=True)
+                                elif task["status"] == "Error":
+                                    # Simple retry button that looks exactly like download button
+                                    retry_key = f"retry_{task['task_id']}"
+                                    if st.button("🔄", key=retry_key, help="Retry processing this video"):
+                                        # Retry the task
+                                        try:
+                                            retry_response = requests.post(
+                                                f"{API_BASE_URL}/api/process",
+                                                params={
+                                                    "youtube_url": task["youtube_url"],
+                                                }
+                                            )
+                                            if retry_response.status_code == 200:
+                                                st.success("✅ Task restarted successfully!")
+                                                st.rerun()
+                                            else:
+                                                st.error(f"❌ Failed to restart task: {retry_response.text}")
+                                        except Exception as e:
+                                            st.error(f"❌ Error restarting task: {str(e)}")
+                                else:
+                                    st.markdown('<div style="text-align: center; color: #d1d5db;">—</div>', unsafe_allow_html=True)
+                        
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    else:
+                        st.info("No active tasks found.")
+                else:
+                    st.info("No tasks found.")
+        except Exception as e:
+            st.error(f"Error fetching tasks: {str(e)}")
+
+# Show existing task notification if present
+if st.session_state.show_existing_task_message:
+    if st.session_state.existing_task_status == "completed":
+        # Show success message with download button
+        success_container = st.container()
+        with success_container:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.success("✅ This video has already been processed!")
+            with col2:
+                if st.session_state.task_id:
+                    download_url = f"{EXTERNAL_API_URL}/api/download/{st.session_state.task_id}"
+                    st.link_button(
+                        "📥 Download",
+                        download_url,
+                        type="primary",
+                        use_container_width=True
+                    )
+    elif st.session_state.existing_task_status == "processing":
+        st.warning("⏳ This video is currently being processed. Check the status in the table below.")
+    elif st.session_state.existing_task_status == "queued":
+        st.info("📋 This video is queued for processing. It will start soon.")
+    
+    # Clear the message after showing it
+    st.session_state.show_existing_task_message = None
+
+# Form container with proper state management
+form_container = st.container()
+with form_container:
+    with st.form("youtube_form", clear_on_submit=True):
         # YouTube URL input with helper text
         youtube_url = st.text_input(
             "YouTube URL",
             placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/...",
-            help="Enter a YouTube video URL. Supported formats: youtube.com/watch?v=..., youtu.be/..., or m.youtube.com/watch?v=..."
+            help="Enter a YouTube video URL. Supported formats: youtube.com/watch?v=..., youtu.be/..., or m.youtube.com/watch?v=...",
+            key="url_input"
         )
         
         # Submit button
@@ -50,198 +294,138 @@ if not st.session_state.processing:
             type="primary"
         )
 
-    # Process the form submission
-    if submit_button:
-        # Validate the YouTube URL
-        is_valid, error_msg, video_id = validate_youtube_url(youtube_url)
+# Process the form submission
+if submit_button:
+    # Validate the YouTube URL
+    is_valid, error_msg, video_id = validate_youtube_url(youtube_url)
+    
+    if not is_valid:
+        st.error(f"❌ {error_msg}")
         
-        if not is_valid:
-            st.error(f"❌ {error_msg}")
-            
-            # Provide helpful suggestions based on the error
-            help_msg = get_validation_help_message(error_msg)
-            if help_msg:
-                st.info(help_msg)
-        else:
-            # Clean the URL before processing
-            clean_url = extract_clean_url(youtube_url)
-            st.session_state.error_message = None
-            # Save URL for retry
-            st.session_state.last_url = clean_url
-            
-            # Start processing
-            try:
-                # Call the API with the clean URL
-                response = requests.post(
-                    f"{API_BASE_URL}/api/process",
-                    params={
-                        "youtube_url": clean_url,
-                    }
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    st.session_state.task_id = result["task_id"]
-                    st.session_state.processing = True
-                    st.session_state.download_url = None
-                    st.session_state.error_message = None
-                    st.rerun()
-                else:
-                    # Check if it's a specific API error
-                    if response.status_code == 400:
-                        st.error(f"❌ API rejected the URL: {response.text}")
-                    elif response.status_code == 404:
-                        st.error(f"❌ Video not found or unavailable. Please check if the video is public and accessible.")
-                    else:
-                        st.error(f"❌ Error: {response.status_code} - {response.text}")
-                    
-            except requests.exceptions.ConnectionError:
-                st.error("❌ Could not connect to the API server. Please make sure the backend is running on port 12345.")
-            except Exception as e:
-                st.error(f"❌ An error occurred: {str(e)}")
-
-# Processing or result display
-if st.session_state.processing and st.session_state.task_id:
-    # Create a placeholder for the processing message
-    status_placeholder = st.empty()
-    
-    # Show processing animation
-    with status_placeholder.container():
-        with st.spinner("Processing your video... This may take a few minutes."):
-            # Keep checking status until complete
-            while st.session_state.processing:
-                try:
-                    status_response = requests.get(
-                        f"{API_BASE_URL}/api/status/{st.session_state.task_id}"
-                    )
-                    
-                    if status_response.status_code == 200:
-                        status_data = status_response.json()
-                        
-                        if status_data["status"] == "completed":
-                            # Save download URL and stop processing
-                            st.session_state.download_url = f"{API_BASE_URL}/api/download/{st.session_state.task_id}"
-                            st.session_state.processing = False
-                            st.rerun()
-                            
-                        elif status_data["status"] == "error":
-                            # Save error and stop processing
-                            st.session_state.error_message = status_data.get('error', 'Unknown error occurred')
-                            st.session_state.processing = False
-                            st.rerun()
-                        
-                        # If still processing or queued, wait before next check
-                        else:
-                            time.sleep(3)
-                            
-                except Exception as e:
-                    st.session_state.error_message = f"Connection error: {str(e)}"
-                    st.session_state.processing = False
-                    st.rerun()
-                    break
-
-# Show download section if successful - appears instantly!
-elif st.session_state.download_url:
-    
-    # Simple CSS for minimal green button
-    st.markdown("""
-    <style>
-    .minimal-download {
-        text-align: center;
-        margin: 0 0 2rem 0;
-    }
-    .minimal-download a {
-        background-color: #4CAF50;
-        color: white !important;
-        padding: 0.5rem 1.5rem;
-        border-radius: 0.25rem;
-        text-decoration: none !important;
-        font-size: 1rem;
-        display: inline-block;
-    }
-    .minimal-download a:hover {
-        background-color: #45a049;
-        color: white !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Minimal download button
-    st.markdown(f"""
-    <div class="minimal-download">
-        <a href="{st.session_state.download_url}" target="_blank">
-            Download Results
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Action buttons
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("🔄 Analyze Another Video", use_container_width=True):
-            # Reset state
-            st.session_state.task_id = None
-            st.session_state.processing = False
-            st.session_state.download_url = None
-            st.session_state.error_message = None
-            st.rerun()
-    
-    with col2:
-        if st.button("📋 Copy Download Link", use_container_width=True):
-            # JavaScript to copy to clipboard
-            st.components.v1.html(f"""
-            <script>
-                navigator.clipboard.writeText('{st.session_state.download_url}').then(function() {{
-                    alert('Download link copied to clipboard!');
-                }});
-            </script>
-            """, height=0)
-
-# Show error if failed
-elif st.session_state.error_message and not st.session_state.processing:
-    st.error(f"❌ Processing failed: {st.session_state.error_message}")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔄 Retry", use_container_width=True, type="primary"):
-            if st.session_state.last_url:
+        # Provide helpful suggestions based on the error
+        help_msg = get_validation_help_message(error_msg)
+        if help_msg:
+            st.info(help_msg)
+    else:
+        # Clean the URL before processing
+        clean_url = extract_clean_url(youtube_url)
+        st.session_state.error_message = None
+        # Save URL for retry
+        st.session_state.last_url = clean_url
+        
+        # Start processing
+        try:
+            # Call the API with the clean URL
+            response = requests.post(
+                f"{API_BASE_URL}/api/process",
+                params={
+                    "youtube_url": clean_url,
+                }
+            )
+            if response.status_code == 200:
+                result = response.json()
+                st.session_state.task_id = result["task_id"]
                 st.session_state.error_message = None
-                st.session_state.processing = True
+                st.session_state.form_submitted = True
                 
-                # Retry with the same URL
-                try:
-                    response = requests.post(
-                        f"{API_BASE_URL}/api/process",
-                        params={
-                            "youtube_url": st.session_state.last_url,
-                        }
-                    )
+                # Check if this is an existing task
+                if result["status"].startswith("existing_task_"):
+                    actual_status = result["status"].replace("existing_task_", "")
                     
-                    if response.status_code == 200:
-                        result = response.json()
-                        st.session_state.task_id = result["task_id"]
+                    # Set flags for showing appropriate message
+                    st.session_state.show_existing_task_message = True
+                    st.session_state.existing_task_status = actual_status
+                    
+                    if actual_status == "completed":
+                        # Task is already completed
+                        st.session_state.download_url = result.get("download_url", f"{EXTERNAL_API_URL}/api/download/{result['task_id']}")
+                        st.session_state.processing = False
+                    else:
+                        # Task is still processing or queued
                         st.session_state.processing = True
                         st.session_state.download_url = None
-                        st.session_state.error_message = None
-                        st.rerun()
-                    else:
-                        st.session_state.error_message = f"API Error {response.status_code}: {response.text}"
+                else:
+                    # New task
+                    st.session_state.processing = True
+                    st.session_state.download_url = None
+                    st.session_state.show_existing_task_message = None
+                    st.session_state.existing_task_status = None
+                
+                # Use st.rerun() with a small delay to prevent form duplication
+                time.sleep(0.1)
+                st.rerun()
+            else:
+                # Check if it's a specific API error
+                if response.status_code == 400:
+                    st.error(f"❌ API rejected the URL: {response.text}")
+                elif response.status_code == 404:
+                    st.error(f"❌ Video not found or unavailable. Please check if the video is public and accessible.")
+                else:
+                    st.error(f"❌ Error: {response.status_code} - {response.text}")
+                
+        except requests.exceptions.ConnectionError:
+            st.error("❌ Could not connect to the API server. Please make sure the backend is running on port 12345.")
+        except Exception as e:
+            st.error(f"❌ An error occurred: {str(e)}")
+
+
+# Display tasks table
+display_tasks_table()
+
+# Processing status check
+if st.session_state.processing and st.session_state.task_id:
+    # Show processing message
+    st.info("🔄 Your video is being processed. You can see the progress in the table above.")
+    
+    # Add a progress indicator
+    progress_container = st.container()
+    with progress_container:
+        with st.spinner("Processing..."):
+            # Check status in background without blocking UI
+            try:
+                status_response = requests.get(
+                    f"{API_BASE_URL}/api/status/{st.session_state.task_id}"
+                )
+                
+                if status_response.status_code == 200:
+                    status_data = status_response.json()
+                    
+                    # Handle both regular and existing_task_ status formats
+                    actual_status = status_data["status"]
+                    if actual_status.startswith("existing_task_"):
+                        actual_status = actual_status.replace("existing_task_", "")
+                    
+                    if actual_status == "completed":
+                        # Stop processing flag since task is done
+                        st.session_state.processing = False
+                        st.session_state.download_url = f"{EXTERNAL_API_URL}/api/download/{st.session_state.task_id}"
                         st.rerun()
                         
-                except requests.exceptions.ConnectionError:
-                    st.session_state.error_message = "Could not connect to the API server. Please make sure the backend is running on port 12345."
-                    st.rerun()
-                except Exception as e:
-                    st.session_state.error_message = str(e)
-                    st.rerun()
-    
-    with col2:
-        if st.button("Start Over", use_container_width=True):
-            # Reset all state
-            st.session_state.task_id = None
-            st.session_state.processing = False
-            st.session_state.download_url = None
-            st.session_state.error_message = None
-            st.session_state.last_url = None
+                    elif actual_status == "error":
+                        # Save error and stop processing
+                        st.session_state.error_message = status_data.get('error', 'Unknown error occurred')
+                        st.session_state.processing = False
+                        st.rerun()
+                        
+            except Exception as e:
+                # Don't show connection errors during processing, just continue
+                pass
+
+# Show error if failed
+if st.session_state.error_message and not st.session_state.processing:
+    st.error(f"❌ Processing failed: {st.session_state.error_message}")
+
+# Check if there are any active tasks
+if has_active_tasks() or st.session_state.processing:
+    # Auto-refresh every 3 seconds
+    time_since_refresh = (datetime.now() - st.session_state.last_refresh).total_seconds()
+    if time_since_refresh > 3:
+        st.session_state.last_refresh = datetime.now()
+        time.sleep(0.1)  # Small delay to prevent too rapid refreshing
+        st.rerun()
+    else:
+        # Schedule next refresh
+        remaining_time = 3 - time_since_refresh
+        with st.empty():
+            time.sleep(remaining_time)
             st.rerun()

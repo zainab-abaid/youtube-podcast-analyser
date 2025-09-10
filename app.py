@@ -29,8 +29,9 @@ def process_video_background(task_id: str, youtube_url: str):
         output_path = f"output/{output_filename}.xlsx"
         os.makedirs("output", exist_ok=True)
 
-        # Update task status
+        # Update task status and ensure video name is stored
         processing_tasks[task_id]["status"] = "processing"
+        processing_tasks[task_id]["youtube_video_name"] = video_title
 
         # Process the video
         process_video(youtube_url, output_path)
@@ -53,7 +54,33 @@ async def process_youtube_video(
         youtube_url: str = Query(..., description="YouTube video URL"),
         background_tasks: BackgroundTasks = None
 ):
-    # Generate a unique task ID
+    # Check if there's already a task for this video URL
+    existing_task = None
+    existing_task_id = None
+    
+    for task_id, task_data in processing_tasks.items():
+        if task_data.get("youtube_url") == youtube_url:
+            existing_task = task_data
+            existing_task_id = task_id
+            break
+    
+    # If task exists and is not in error state, return existing task info
+    if existing_task and existing_task["status"] != "error":
+        response = {
+            "task_id": existing_task_id,
+            "status": f"existing_task_{existing_task['status']}",
+            "youtube_url": youtube_url,
+            "output_filename": existing_task.get("output_filename", ""),
+            "message": f"Task already exists with status: {existing_task['status']}"
+        }
+        
+        # Add download URL if completed
+        if existing_task["status"] == "completed":
+            response["download_url"] = f"/api/download/{existing_task_id}"
+            
+        return response
+
+    # Generate a unique task ID for new task
     task_id = str(uuid.uuid4())
 
     # Get video title for the response (but actual filename generation happens in background)
@@ -62,12 +89,14 @@ async def process_youtube_video(
         output_filename = f"podcast_summary_{video_title}.xlsx"
     except Exception:
         # Fallback filename if title extraction fails during response
+        video_title = "Unknown Video"
         output_filename = f"podcast_summary_video.xlsx"
 
     # Initialize task status
     processing_tasks[task_id] = {
         "status": "queued",
         "youtube_url": youtube_url,
+        "youtube_video_name": video_title,
         "output_filename": output_filename
     }
 
