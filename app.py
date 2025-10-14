@@ -21,7 +21,7 @@ class TaskStatus(str, enum.Enum):
     ERROR = "error"
 
 
-def process_video_background(task_id: str, youtube_url: str):
+def process_video_background(task_id: str, youtube_url: str, username: str = ""):
     try:
         # Get video title and generate filename
         video_title = get_video_title(youtube_url)
@@ -29,9 +29,10 @@ def process_video_background(task_id: str, youtube_url: str):
         output_path = f"output/{output_filename}.xlsx"
         os.makedirs("output", exist_ok=True)
 
-        # Update task status and ensure video name is stored
+        # Update task status and ensure video name and username are stored
         processing_tasks[task_id]["status"] = "processing"
         processing_tasks[task_id]["youtube_video_name"] = video_title
+        processing_tasks[task_id]["username"] = username
 
         # Process the video
         process_video(youtube_url, output_path)
@@ -52,14 +53,16 @@ def process_video_background(task_id: str, youtube_url: str):
 @app.post("/api/process")
 async def process_youtube_video(
         youtube_url: str = Query(..., description="YouTube video URL"),
+        username: str = Query("", description="Username (optional)"),
         background_tasks: BackgroundTasks = None
 ):
-    # Check if there's already a task for this video URL
+    # Check if there's already a task for this video URL from the same user
     existing_task = None
     existing_task_id = None
     
     for task_id, task_data in processing_tasks.items():
-        if task_data.get("youtube_url") == youtube_url:
+        if (task_data.get("youtube_url") == youtube_url and 
+            task_data.get("username", "") == username):
             existing_task = task_data
             existing_task_id = task_id
             break
@@ -97,11 +100,12 @@ async def process_youtube_video(
         "status": "queued",
         "youtube_url": youtube_url,
         "youtube_video_name": video_title,
+        "username": username,
         "output_filename": output_filename
     }
 
     # Start background task
-    background_tasks.add_task(process_video_background, task_id, youtube_url)
+    background_tasks.add_task(process_video_background, task_id, youtube_url, username)
 
     return {
         "task_id": task_id,
