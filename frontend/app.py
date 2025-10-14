@@ -41,6 +41,10 @@ if 'existing_task_status' not in st.session_state:
     st.session_state.existing_task_status = None
 if 'form_submitted' not in st.session_state:
     st.session_state.form_submitted = False
+if 'username' not in st.session_state:
+    st.session_state.username = ""
+if 'selected_user_filter' not in st.session_state:
+    st.session_state.selected_user_filter = "All Users"
 
 # Title
 st.title("🎙️ YouTube Podcast Analyzer")
@@ -74,15 +78,45 @@ def display_tasks_table():
                 tasks = response.json()
                 
                 if tasks:
-                    st.subheader("Tasks")
+                    # Create header row with filter
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.subheader("Tasks")
+                    
+                    # Get unique users for filter dropdown
+                    unique_users = set()
+                    for task_data in tasks.values():
+                        username = task_data.get("username", "")
+                        unique_users.add(username if username else "N/A")
+                    
+                    # Sort users and add "All Users" option
+                    user_options = ["All Users"] + sorted(list(unique_users))
+                    
+                    with col2:
+                        selected_user = st.selectbox(
+                            "Filter by User",
+                            options=user_options,
+                            index=0,
+                            key="user_filter",
+                            label_visibility="collapsed"
+                        )
+                        st.session_state.selected_user_filter = selected_user
                     
                     # Filter tasks for in-progress, completed, and error
                     filtered_tasks = []
                     for task_id, task_data in tasks.items():
                         if task_data.get("status") in ["processing", "queued", "completed", "error"]:
+                            task_username = task_data.get("username", "")
+                            display_username = task_username if task_username else "N/A"
+                            
+                            # Apply user filter
+                            if selected_user != "All Users" and display_username != selected_user:
+                                continue
+                            
                             filtered_tasks.append({
                                 "task_id": task_id,
                                 "video_name": task_data.get("youtube_video_name", "Unknown"),
+                                "username": display_username,
                                 "status": task_data.get("status", "unknown").title(),
                                 "youtube_url": task_data.get("youtube_url", ""),
                                 "error": task_data.get("error", "")
@@ -115,10 +149,16 @@ def display_tasks_table():
                         .minimal-table-row:last-child {
                             border-bottom: none;
                         }
+                        /* Universal video name styling that works in both themes */
                         .video-name {
                             font-size: 0.9rem;
-                            color: #FFFFFF;
+                            color: #4b5563 !important;
                             line-height: 1.4;
+                        }
+                        .username-text {
+                            font-size: 0.85rem;
+                            color: #6b7280;
+                            font-style: italic;
                         }
                         .status-text {
                             font-size: 0.85rem;
@@ -185,26 +225,31 @@ def display_tasks_table():
                         st.markdown('<div class="minimal-table">', unsafe_allow_html=True)
                         
                         # Table headers
-                        col1, col2, col3 = st.columns([5, 2, 1])
+                        col1, col2, col3, col4 = st.columns([4, 2, 2, 1])
                         with col1:
                             st.markdown('<div class="minimal-table-header">Video</div>', unsafe_allow_html=True)
                         with col2:
-                            st.markdown('<div class="minimal-table-header">Status</div>', unsafe_allow_html=True)
+                            st.markdown('<div class="minimal-table-header">User</div>', unsafe_allow_html=True)
                         with col3:
+                            st.markdown('<div class="minimal-table-header">Status</div>', unsafe_allow_html=True)
+                        with col4:
                             st.markdown('<div class="minimal-table-header" style="text-align: center;">Action</div>', unsafe_allow_html=True)
                         
                         # Display table rows
                         for task in filtered_tasks:
-                            col1, col2, col3 = st.columns([5, 2, 1])
+                            col1, col2, col3, col4 = st.columns([4, 2, 2, 1])
                             
                             with col1:
                                 # Truncate long video names
                                 video_name = task["video_name"]
-                                if len(video_name) > 50:
-                                    video_name = video_name[:47] + "..."
+                                if len(video_name) > 40:
+                                    video_name = video_name[:37] + "..."
                                 st.markdown(f'<div class="video-name">{video_name}</div>', unsafe_allow_html=True)
                             
                             with col2:
+                                st.markdown(f'<div class="username-text">{task["username"]}</div>', unsafe_allow_html=True)
+                            
+                            with col3:
                                 status = task["status"].lower()
                                 if status == "processing":
                                     st.markdown('<span class="status-text status-processing">🔄 Processing</span>', unsafe_allow_html=True)
@@ -215,7 +260,7 @@ def display_tasks_table():
                                 elif status == "error":
                                     st.markdown('<span class="status-text status-error">❌ Error</span>', unsafe_allow_html=True)
                             
-                            with col3:
+                            with col4:
                                 if task["status"] == "Completed":
                                     download_url = f"{EXTERNAL_API_URL}/api/download/{task['task_id']}"
                                     st.markdown(f'<div style="text-align: center;"><a href="{download_url}" class="action-link" target="_blank" title="Download">📥</a></div>', unsafe_allow_html=True)
@@ -229,6 +274,7 @@ def display_tasks_table():
                                                 f"{API_BASE_URL}/api/process",
                                                 params={
                                                     "youtube_url": task["youtube_url"],
+                                                    "username": task.get("username", "")
                                                 }
                                             )
                                             if retry_response.status_code == 200:
@@ -278,7 +324,16 @@ if st.session_state.show_existing_task_message:
 # Form container with proper state management
 form_container = st.container()
 with form_container:
-    with st.form("youtube_form", clear_on_submit=True):
+    with st.form("youtube_form", clear_on_submit=False):
+        # Username input
+        username = st.text_input(
+            "Username (optional)",
+            placeholder="Enter your username",
+            help="Enter your username to track your video processing tasks. Leave blank if you prefer to remain anonymous.",
+            key="username_input",
+            value=st.session_state.username
+        )
+        
         # YouTube URL input with helper text
         youtube_url = st.text_input(
             "YouTube URL",
@@ -296,6 +351,9 @@ with form_container:
 
 # Process the form submission
 if submit_button:
+    # Save username to session state
+    st.session_state.username = username
+    
     # Validate the YouTube URL
     is_valid, error_msg, video_id = validate_youtube_url(youtube_url)
     
@@ -315,11 +373,12 @@ if submit_button:
         
         # Start processing
         try:
-            # Call the API with the clean URL
+            # Call the API with the clean URL and username
             response = requests.post(
                 f"{API_BASE_URL}/api/process",
                 params={
                     "youtube_url": clean_url,
+                    "username": username
                 }
             )
             if response.status_code == 200:
